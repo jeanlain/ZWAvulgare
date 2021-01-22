@@ -31,7 +31,6 @@ nCPUs <- as.integer(args[3])
 # - the base the read carries at the position in column "base", coded as integer (1:4), again to speed things
 
 source("WZ_functions.R")
-library(tools)
 
 # imports the VCF of informative SNPs
 vcf <- fread(vcf)
