@@ -1,6 +1,6 @@
 # computes sequencing depth on sliding windows in the F1 (and parents)
 
-source("WZfunctions.R")
+source("WZ_functions.R")
 
 args <- commandArgs(trailingOnly = T)
 
