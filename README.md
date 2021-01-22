@@ -5,7 +5,7 @@ Richard Cordaux, Mohamed Amine Chebbi, Isabelle Giraud, David Pleydell and Jean 
 
 The scripts are not a ready-to-use piece of software to investigate sex chromosomes in other species.
 They are provided to document our method.
-Not everything was scripted.
+Not every step of the pipeline was scripted.
 
 Scripts starting with numbers were run (from an R console) in that ordrer.
 The other provided scripts were sourced from the numbered scripts.
