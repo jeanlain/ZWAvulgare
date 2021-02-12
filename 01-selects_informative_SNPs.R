@@ -129,7 +129,7 @@ alleles[mother.L.in.father, ] <- cbind(mother.R[mother.L.in.father], mother.L[mo
 alleles[mother.R.in.father, ] <- cbind(mother.L[mother.R.in.father], mother.R[mother.R.in.father])
 
 # we add these to the VCF. Column "A1" will indicate the maternal allele
-vcf[, c("A1", "A2") := data.table(alleles)] # A1 is the maternal allele
+vcf[, c("A1", "A2") := data.table(alleles)] # A2 is the alternative allele
 
 # we retain only informative SNPs and the columns we want
 vcf <- vcf[!is.na(A1) & !is.na(A2), .(

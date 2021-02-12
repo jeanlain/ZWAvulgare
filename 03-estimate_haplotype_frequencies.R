@@ -1,26 +1,31 @@
-
 ##%######################################################%##
 #                                                          #
-####     Stage 3: infer SNP types, filter SNPs and      ####
-####        estimate haplotype frequencies using        ####
+####           We phase maternal haplotypes             ####
+####      and estimate haplotype frequencies using      ####
 ####               data from the F1 pools               ####
 #                                                          #
 ##%######################################################%##
 
-# NOTE : to avoid using different functions for daughters and sons and to simply
+
+# NOTE : we denote the "SDR allele to which the maternal allele is linked",
+# which is quite a mouthful, simply as "SNP type", and we use integer numbers to
+# denote that (for performance reasons). Hence a SNP is of "type 1" if its
+# maternal allele is linked to the W and is of "type 2" if this allele is linked
+# to the Z
+# IMPORTANT : to avoid using different functions for daughters and sons and to simply
 # the code, we revert SNP type in sons (a type 1 SNP in daughters becomes a
-# type-2 SNP in their brothers and reciprocally) this allows using the same
+# type-2 SNP in their brothers and reciprocally). This allows using the same
 # equations in both sexes, and is equivalent to the equations in the paper (this
 # was actually the solution described in the first version of the manuscript
-# before the resivion, but this made the biological explanations much more
-# complex, so we dropped it in the revision) We refer to the reverted SNP type
+# before the revision, but this made the biological explanations much more
+# complex, so we dropped it in the revision). We refer to the reverted SNP type
 # as "SNP group" (in both sexes)
 
 # Because of this, f is the frequency of the Z-linked haplotype in sons, not the
-# W! As for the W-linked haplotye daughers, the Z should be inherited by all
+# W-linked! As for the W-linked haplotype daughters, the Z should be inherited by all
 # sons for a contig that is totally linked to the SDR (f = 0.5). So we are
-# particuarly interested in p(f = 0.5) for both sexes, which also simplifies the
-# code
+# particularly interested in p(f = 0.5) for both sexes, which also simplifies the
+# code (we have the same expectations in both sexes)
 
 source("WZ_functions.R")
 
@@ -32,12 +37,14 @@ vcf <- fread("tables/vcfAndF1countsLikelihoodQ20.txt")
 
 # we first filter SNPs --------------------------------------------
 
-# assigning types to SNPs (see paper)
-vcf[, type := 2L - (Cd / Rd) >= (Cs / Rs)]
+# assigning types to SNPs = phasing haplotype (see paper)
+# 1 means that the maternal allele is linked to the W
+# 2 means that it is linked to the Z.
+vcf[, type := 2L - ((Cd / Rd) >= (Cs / Rs))]
 
 # when frequencies are the same between the sexes, we attribute types at random
 # (actually, based on whether the SNP position is even, to permit perfect
-# replication in simulations)
+# replication in case this code is ran several times)
 vcf[(Cd / Rd) == (Cs / Rs), type := POS %% 2L + 1L]
 
 vcf[, p := pFgivenCountsSNPs(Cd, Rd, group = type) * 
@@ -62,11 +69,11 @@ vcf[p > 0.05, retained := T]
 
 vcf[is.na(retained), retained := F]
 
-# vcf[, retained := Rd > 0L & Rs  > 0L & Rd+Rs <= 95L & father.GQ > 10L & mother.GQ > 10L & Rd+Rs > (dA+dC+dG+dT+sA+sC+sG+sT)*0.75]
 
-
-# We locate "outlier" SNPs that give a much lower probabilty that f=0.5
+# We locate "outlier" SNPs that give a much lower probability that f=0.5
 # than the other SNPs of the same contig.
+# remember that f should equal 0.5 even in sons if the contig did not recombine 
+# with the SDR (see introductory NOTE)
 # we reframe the table so as all pools are on different rows and to obtain a
 # single column for C and R, but we keep information on the sex with a new
 # logical "sex" column which is TRUE for females. Doing so simplifies the script
@@ -95,6 +102,11 @@ for (fami in c("WXA", "ZM")) {
 setorder(vcf, fam, genomePos)
 
 # we now count c1, r1, c2, r2 and compute P(f|cri) -----------------------------------
+# Here, 1 refers to W in daughters and 2 to Z in sons, 
+# 2 refers to Z in daughters and to W in sons 
+# We do not use the notation cw, cz, rw and rz, as our implementation is not 
+# a direct transcription of the method section (see the introductory NOTE)
+
 # we import contig lengths to assign absolute positions to contigs in these tables
 contigLengths <- readNamedVector("contigLengths.txt")
 
@@ -107,7 +119,7 @@ SNPs = split(vcf[retained == T, .(CHROM = chmatch(CHROM, names(contigLengths)),
 # we duplicate each table, to have one per pool (2 pools per family)
 SNPs = SNPs[c(1, 1, 2, 2)]
 
-# for sons, we revert SNP types
+# for sons, we revert SNP types (see the NOTE at the begining)
 for(i in c(2, 4)) {
   snps = copy(SNPs[[i]])
   snps[,group := 3L-group]
@@ -122,14 +134,14 @@ F1scans <- mclapply(scans, readRDS, mc.cores = length(scans))
 # we name the tables
 names(F1scans) <- stri_extract_first(scans, regex = "[A-Z]+_[a-z]")
 
-# we obtain the rci variables (read counts for different SNP groups)
-# see the countReads() function in WZfunctions.R
+# we obtain the cri variables (read counts for different SNP groups)
+# see the countReads() function in WZ_functions.R
 readCounts <- setNames(
-  Map(countReads, F1scans, SNPs, 20L, length(contigLengths), F, names(F1scans)), 
+  Map(countReads, F1scans, SNPs, 20L, length(contigLengths), T, names(F1scans)), 
   names(F1scans))
 
 # we reclaim some RAM
-# rm(F1scans, counts, SNPs) ; gc()
+rm(F1scans, counts, SNPs) ; gc()
 
 
 # we compute the posterior probabilities of all possible haplotype frequencies

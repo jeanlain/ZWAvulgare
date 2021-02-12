@@ -91,7 +91,7 @@ getBasesAtSNPs <- function(snps) {
     return(NULL)
   }
 
-  # We split and retains the columns we want. We add rbind in case there is a
+  # We split and retain the columns we want. We add rbind in case there is a
   # single SNPs, to force create a matrix
   sam <- data.table(rbind(stri_split(sam, fixed = "\t", simplify = T)[, c(1:6, 10)]))
   setnames(sam, c("qname", "flag", "refname", "pos", "mapq", "cigar", "seq"))
@@ -103,7 +103,7 @@ getBasesAtSNPs <- function(snps) {
   # for reads not mapped in proper pairs (sam flag 2), we retain this piece of
   # info by setting the mapping quality negative (avoids making a dedicated
   # column for that, as objects will be quite big)
-  # In the paper, we don't use this piece of information
+  # (In the paper, we don't use this piece of information)
   sam[bitwAnd(flag, 2L) != 2L, mapq := -mapq]
   sam[, flag := NULL]
 
@@ -114,14 +114,14 @@ getBasesAtSNPs <- function(snps) {
   # fast way to extract read bases and convert them to integer in a single vector
   bases <- charToRaw(stri_flatten(sam$seq))
 
-  # now converted to more "natural" integer from 1 ot 4
+  # now converted to more "natural" integer from 1 to 4
   bases <- baseNum[as.integer(bases)]
 
   # length of each aligned read part
   nc <- nchar(sam$seq)
 
   # we use it to create a data table with one row per base across all
-  # alignments, "aln" is the alignment number = the orignal sam row number
+  # alignments, "aln" is the alignment number = the original sam row number
   aln <- rep(1:nrow(sam), nc)
   bases <- data.table(base = bases, sam[aln, .(qname, mapq)], aln)
   
@@ -158,7 +158,7 @@ getBasesAtSNPs <- function(snps) {
   # bases in soft clipped regions and insertions consume no reference base as they are not on the reference
   bases[notInRef, toAdd := 0L]
 
-  # however, bases at the begining of deletions will consume more than one base
+  # however, bases at the beginning of deletions will consume more than one base
   # (= 1+ the size of the deletion)
   bases[cigar$start[deletion], toAdd := cigar$size[deletion] + 1L]
 
@@ -172,12 +172,12 @@ getBasesAtSNPs <- function(snps) {
 
   # we only retain bases at SNP coordinates and remove those corresponding to
   # insertions in reads that have no equivalent in the reference
-  # we also ignore bases not correspnding to ACGT (the base would be 0L)
+  # we also ignore bases not corresponding to ACGT (the base would be 0L)
   bases <- bases[toAdd > 0L & pos %in% snpPos & base != 0L, .(readPair = qname, mapq, A = abs(mapq), pos, base)]
 
   # and we will retain only one alignment per read pair per position (there can
-  # be several due to overlap between forward and reverse read in short
-  # fragments). We favor alignents of better quality
+  # be several due to overlap between forward and reverse reads in short
+  # fragments). We favor alignments of better quality
   # so we sort read pairs by decreasing mapQ
   setorder(bases, pos, -A)
   cat(".")
@@ -185,7 +185,7 @@ getBasesAtSNPs <- function(snps) {
   res = bases[!duplicated(data.table(readPair, pos)), -"A"]
 }
 
-# run in parallel for differents batches of snps
+# run in parallel for different batches of snps
 res <- mclapply(bins, getBasesAtSNPs, mc.cores = nCPUs, mc.preschedule = F)
 res = rbindlist(res)
 

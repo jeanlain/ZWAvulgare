@@ -363,7 +363,7 @@ par(mai = c(0.2, 0.8, 0.4, 0.35))
 # we prepare an empty plot to add rectangles to it
 with(blocks, plot(
   x = range(left + 1L), y = range(c(top, bottom)), bty = "n", type = "n",
-  ylab = "Contig length (kbp)", las =1,
+  ylab = "Position in contig (kbp)", las =1,
   xlab = "",  xlim =c(2, max(left) +1),
   xaxt = "n"
 ))

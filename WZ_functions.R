@@ -182,51 +182,13 @@ baseMatrix <- function(scannedBam, genomePos, minMapQ = 1L, onlyProper = F) {
 # the possible values of f in our pools (of n = 10)
 Fset <- 0:10 / 20
 
-
-pFgivenCountsSNPs <- function(c, r, group, epsilon = 1 / 100, f = 0.5) {
-  # cthis omputes the posterior probabily of a value of f for individual SNPs, using snp
-  # group information instead of c1, r1, c2, r2 (as r1 or r2 = 0 for a single
-  # SNP)
-  # c, r and group are integer vectors
-  Nominator <- vapply(Fset, function(Fset) {
-    dbinom(c, size = r, prob = ifelse(
-      group == 1L,
-      yes = Fset,
-      no = (1 - epsilon) * (0.5 - Fset) + epsilon
-    ))
-  }, numeric(length(c)))
-
-  # the posterior for each possible value of f
-  p <- Nominator / rowSums(Nominator)
-
-  # we return the probability for the value of f we want
-  p[, Fset == f]
-}
-
-
-pLimit <- function(p) {
-  # computes the limit of the log(p05) "p" above which SNPs are considered as outlier
-  if (length(p) == 1L) {
-    return(p)
-  }
-  excluded <- F
-  repeat {
-    limit <- mean(p[!excluded]) + 4 * sd(p[!excluded])
-    newExcluded <- p > limit & !excluded
-    if (!any(newExcluded)) {
-      return(limit)
-    }
-    excluded <- newExcluded | excluded
-  }
-}
-
-
-
 countReads <- function(F1scan, snps, minMapq = 20L, nCont, saveForSimu = T, pool) {
-  # retreives the c1, r1, c2 and r2 for a pool (F1scan data.table)
+  # retrieves the c1, r1, c2 and r2 for a pool (F1scan data.table)
   # snps is a data.table indicating position, alleles and group for each retained SNP
-  # uCountigs are all the contig identifiers for which we want to retreive results
+  # nCont is the number of contigs (needed for some instructions)
   # pool is the name of the pool being processed (only used to name a file)
+  # see script 03 to know why we use c1, c2, etc. instead of cw, cz… and what a
+  # "SNP group" means
 
   # we first select the data we need for the given pool (read id, position and base)
   F1scan <- F1scan[abs(mapq) >= minMapq, .(readPair, pos, base)]
@@ -282,39 +244,52 @@ countReads <- function(F1scan, snps, minMapq = 20L, nCont, saveForSimu = T, pool
 
 
 
-countReadsSimp <- function(F1scan, snps, nCont) {
-  # retreives the c1, r1, c2 and r2 for a pool (F1scan data.table)
-  # snps is a data.table indicating position, alleles and group for each retained SNP
+pFgivenCountsSNPs <- function(c, r, group, epsilon = 1 / 100, f = 0.5) {
+  # this omputes the posterior probabily of a value of f for individual SNPs, using snp
+  # group information instead of c1, r1, c2, r2 (as r1 or r2 = 0 for a single
+  # SNP)
+  # c, r and group are integer vectors
+  Nominator <- vapply(Fset, function(Fset) {
+    dbinom(c, size = r, prob = ifelse(
+      group == 1L,
+      yes = Fset,
+      no = (1 - epsilon) * (0.5 - Fset) + epsilon
+    ))
+  }, numeric(length(c)))
+  
+  # the posterior for each possible value of f
+  p <- Nominator / rowSums(Nominator)
+  
+  # we return the probability for the value of f we want
+  p[, Fset == f]
+}
 
-  F1scan[, contig := snps[pos, CHROM]]
 
-  # we now count the reads carrying the different alleles for the different SNP groups
-  readCount <- F1scan[, .(contig = 1:nCont, count = tabulate(contig[!duplicated(readPair)], nbins = nCont)),
-                      by = .(group = snps[pos, group], maternal = base == snps[pos, A1])]
-  
-  # in the dcast below, r1 and r2 will initially count the reads carrying paternal alleles
-  readCount <- dcast(readCount, contig ~ ifelse(maternal, "c", "r") + group, value.var = "count", sep = "", fill = 0L)
-  
-  # while they should correspond to reads carrying maternal + paternal alleles
-  readCount[, c("r1", "r2") := .(c1 + r1, c2 + r2)]
-  
-  # we reorder columns, as we prefer having r1 next to c1, etc.
-  setcolorder(readCount, c("contig", "c1", "r1", "c2", "r2"))
-  
-  cat(".")
-  
-  # we don't return the "contig" column, as it will be the same for all pools
-  readCount[, -"contig"]
+pLimit <- function(p) {
+  # computes the limit of the log(p05) "p" above which SNPs are considered as outlier
+  if (length(p) == 1L) {
+    return(p)
+  }
+  excluded <- F
+  repeat {
+    limit <- mean(p[!excluded]) + 4 * sd(p[!excluded])
+    newExcluded <- p > limit & !excluded
+    if (!any(newExcluded)) {
+      return(limit)
+    }
+    excluded <- newExcluded | excluded
+  }
 }
 
 
 
 pFgivenCountsHapl <- function(c1, r1, c2, r2, epsilon = 0.01) {
-  # computes the posterior probabilities of haplotype frequencies given read counts (integer vectors)
+  # computes the posterior probabilities of haplotype frequencies given read counts (integer vectors, one value per contig)
 
   Nominator <- t(vapply(
     Fset,
     function(f) dbinom(c1, r1, f) * dbinom(c2, r2, (1 - epsilon) * (0.5 - f) + epsilon),
+    # see script 03 for a explanation as to why we use the same function for both sexes
     numeric(length(c1))
   ))
 
@@ -326,7 +301,7 @@ pFgivenCountsHapl <- function(c1, r1, c2, r2, epsilon = 0.01) {
 # some functions used for plotting ----------------------------------
 
 closedPolygon <- function(x, y, closeAt = 0L, ...) {
-  # convenience fonction to closes a polygon at a certain Y value
+  # convenience function to closes a polygon at a certain Y value
   x <- c(x[1], x, tail(x, 1))
   y <- c(closeAt, y, closeAt)
   polygon(x, y, ...)
@@ -346,8 +321,8 @@ ggstyle <- function(...) {
 ggBackground <- function(
                          x, y = NULL, main = "", axes = T, xaxt = par("xaxt"), yaxt = par("yaxt"),
                          xgrid = T, ygrid = T, las = 1, bg.col = grey(0.92), grid.lwd = 1.5, subgrid.lwd = 0.5, ...) {
-  # peprares a plot background mimmicking the ggplot2 style.
-  # this sometime may be more convenient than using ggplot istelf
+  # prepares a plot background mimicking the ggplot2 style.
+  # this may sometimes be more convenient than using ggplot istelf
 
   ggstyle()
 
@@ -682,6 +657,4 @@ plotContig <- function(cont, depth, gff, SNPs) {
     s <- gff[contig == cont & type == "exon", segments(start, Y, end, Y, col = "red", lend = 1, lwd = 6)]
   }
 }
-
-
 
