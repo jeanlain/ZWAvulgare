@@ -15,18 +15,23 @@ source("WZ_functions.R")
 probs <- fread("tables/countsAndPosteriors.txt")
 
 # we add a logical column indicating whether a contigs has informative SNPs in both families
-# we do it indirectly by assessing wether the max posterior is higher than 1/11 (the prior)
+# we do it indirectly by assessing whether the max posterior is higher than 1/11 (the prior)
 probs[, two := pmin(WXA_d.pM, WXA_s.pM, ZM_d.pM, ZM_s.pM) > 1 / 11]
+
+# we do the same for contigs having SNPs at all (in at least one family)
+# because only these contigs were used in simulations
+probs[, one := pmax(WXA_d.pM, WXA_s.pM, ZM_d.pM, ZM_s.pM) > 1 / 11]
+
 
 # we import all the values of nrec obtained by simulations
 simu <- readRDS("simu/nrec_1000repl.RDS")
-simu <- data.table(contig = rep(1:nrow(probs), 1000), nrec = simu / 10^7)
+simu <- data.table(contig = rep(which(probs$one), 1000), nrec = simu / 10^7)
 
 # we compute the nrec 1/1000 quantile for each contig
 quantiles <- simu[, .(q001 = quantile(nrec, 1 / 1000)), by = contig]
 
 # we add this value to the table of actual contigs to assign to sex chromosomes
-probs[, q001 := quantiles$q001]
+probs[one == T, q001 := quantiles$q001]
 
 # a contig is assigned to the WZ chromosomes if its nrec is lower than the quantile
 probs[, WZ := nrec < q001]
@@ -45,7 +50,7 @@ d <- probs[two == T, density(nrec / 40 * 100, from = 0, to = 55, bw = 0.2)]
 probs[two == T, plot(d, type = "n", bty = "n", ylim = c(0, 0.18), las = 1, 
                      main = "", xlab = "Inferred distance to the SDR (cM)")]
 
-# we draw the vertical segments representing integer number of recombinants
+# we draw the vertical segments representing integer number of recombinant
 abline(v = 0:30 / 40 * 100, col = "grey", lty = 3, lwd = 0.5)
 
 # we plot the density for observed data (all contigs)
@@ -73,24 +78,26 @@ dev.off()
 rm(simu)
 
 # we extrapolate chromosome length, given that not all contigs have SNPs in both families.
-probs[two == T, .(sum(length), sum(length[which(WZ)]) / sum(length) * sum(contigLengths))]
+
+
+probs[, .(sum(length[two]), sum(length[which(WZ)]) / sum(length[two]) * sum(length))]
 
 
 
-# investigating crossing over rates ---------------------------------------
+# investigating crossing-over rates ---------------------------------------
 
 nrecSim <- readRDS("simu/nrecContinuousCrossovers.RDS")
 
-# we create a table with the data we need, retreived from "real" contigs
-nrecSim <- data.table(nrecSim, probs[, .(CHROM, nrec, length, q001, two, WZ)])
+# we create a table with the data we need, retrieved from "real" contigs
+nrecSim <- data.table(nrecSim, probs[one ==T, .(CHROM, nrec, length, q001, two, WZ)])
 
 # we assign simulated contigs to sex chromosomes and discard non-assigned contigs
 wz <- nrecSim[nrecSim <= q001 & two == T]
 
-# we obtain the total length of osberved contigs assigned to sex chromosomes
-l <- probs[WZ == T & two == T, sum(length)]
+# we obtain the total length of observed contigs assigned to sex chromosomes
+L <- probs[WZ == T & two == T, sum(length)]
 
-# we sample simulated contigs, ensuring that their total length is as close as possible to l
+# we sample simulated contigs, ensuring that their total length is as close as possible to L
 sampleContigs <- function() {
 
   # randomness is ensured by ordering the selected contigs randomly
@@ -99,8 +106,8 @@ sampleContigs <- function() {
   # we compute their cumulated length from the start of the table
   sel <- sel[, cl := cumsum(length)]
 
-  # and select a sufficient number of contigs so that this cumulated length is the closest to l
-  sel <- sel[1:which.min(abs(l - cl))]
+  # and select a sufficient number of contigs so that this cumulated length is the closest to L
+  sel <- sel[1:which.min(abs(L - cl))]
 
   # we then compute the cumulated length of sampled contigs at every distance to the SDR (converted in cM)
   setorder(sel, nrecSim)
@@ -111,15 +118,19 @@ sampleContigs <- function() {
 samples <- replicate(1000, sampleContigs(), simplify = F)
 samples <- rbindlist(samples)
 
-# for credibility intervals, we make 100 bins of cumulated length
-bins <- quantile(samples$len, seq(0, 1, 0.01))
-samples[, bin := .bincode(len, bins, include.lowest = T)]
+# to compute quantiles for the envelope, we make 100 bins of genetic distance
+bins <- quantile(samples$cM, seq(0, 1, 0.01))
+samples[, bin := .bincode(cM, bins, include.lowest = T)]
 
-# we will show 999/1000 credibility intervals
-limits <- samples[, .(meanLen = mean(len), lower = quantile(cM, 0.005), upper = quantile(cM, 0.995)), by = bin]
+# we compute the quantiles 
+limits <- samples[, .(cM  = mean(cM), lower = quantile(len, 0.05), upper = quantile(len, 0.95)), by = bin]
 setorder(limits, bin)
 
-# we do the equivalent for observed data (but without sampling)
+# we add a last line so that the envelope reaches the max genetic distance (and not just the mean of the last bin)
+limits = limits[c(1:100, 100)]
+limits[.N, cM := max(samples$cM)]
+
+# we prepare the curve for observed data (without sampling)
 setorder(nrecSim, nrec)
 observed <- nrecSim[WZ == T & two == T, .(cM = nrec / 40 * 100, len = cumsum(length) / 10^6)]
 
@@ -128,7 +139,7 @@ pdf("../figure4.pdf", 6, 6)
 
 ggBackground(observed[, .(cM, len)], ylab = "Cumulated contig length (Mbp)",
              xlab = "Inferred distance to the SDR (cM)", las = 1)
-with(limits, polygon(y = c(meanLen, rev(meanLen)), x = c(lower, rev(upper)), 
+with(limits, polygon(x = c(cM, rev(cM)), y = c(lower, rev(upper)), 
                      border = NA, col = rgb(0.9, 0.4, 0.4, 0.6)))
 lines(observed[, .(cM, len)])
 

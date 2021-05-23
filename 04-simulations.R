@@ -125,7 +125,7 @@ simulate <- function(d = 0.5) {
 
   # we compute the f posteriors
   computeProb <- function(f1reads, group) {
-    # we make the counts of read pairs covering the inferred haplotyes in the
+    # we make the counts of read pairs covering the inferred haplotypes in the
     # same way we did for real data
     readCount <- f1reads[, .(contig = 1:nCont, 
                              count = tabulate(contig[!duplicated(readPair)], nbins = nCont)), 
@@ -133,7 +133,7 @@ simulate <- function(d = 0.5) {
     readCount <- dcast(readCount, contig ~ ifelse(maternal, "c", "r") + group, 
                        value.var = "count", sep = "", fill = 0L)
 
-    # if somes cases, the c2 column may be missing (if nZ = 0 for all contigs)
+    # if some cases, the c2 column may be missing (if nZ = 0 for all contigs)
     if (ncol(readCount) < 5L) readCount[, c2 := 0L]
     
     setcolorder(readCount, c("contig", "c1", "r1", "c2", "r2"))
@@ -224,6 +224,7 @@ saveRDS(res, "simuAutosomes_1000repl.RDS")
 # format and convert nrec to integer (32 bits instead of 64 for real numbers)
 # these results are also used to assign "real" contigs to sex chromosomes (at
 # step 05)
+res = rbindlist(res)
 saveRDS(as.integer(res$nrec * 10^7), stri_c("nrec_1000repl.RDS"))
 
 saveRDS(as.integer(res$nrecS * 10^7), "nrecS_1000repl.RDS")
@@ -273,7 +274,7 @@ props <- bothRes[, .(
 
 setorder(props, inferred, d)
 
-# we also estimate the porportion of assigned contigs among those at or below a
+# we also estimate the proportion of assigned contigs among those at or below a
 # certain distance to the SDR
 cumu <- lapply(ds, function(x) {
   bothRes[d <= x, .(

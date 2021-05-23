@@ -30,17 +30,24 @@ nCPUs <- as.integer(args[3])
 # - the mapping quality (integer) "mapQ" It is negative if the reads are not in "proper pair" (to save space)
 # - the base the read carries at the position in column "base", coded as integer (1:4), again to speed things
 
-source("WZ_functions.R")
+source("~/WZ_functions.R")
 
 # imports the VCF of informative SNPs
 vcf <- fread(vcf)
 
 # we will convert contig coordinates into absolute genome coordinates, which will be useful later on
-# for this, we import a tabular file indicating the length of each contig
-contigLengths <- fread("contigLengths.txt")
+# for this, we import the bma header to obtain the length of each contig
+if(!file.exists("contigLengths.txt")) {
+  header <- system(paste("samtools view -H", bam), intern = T)
+  contigLengths = as.data.table(splitToColumns(grep("LN:", header, value = T), ":", 2:3))
+  contigLengths[, c("contig", "length") := .(stri_sub(V1, 1, nchar(V1)-3L), as.integer(V2))]
+  writeT(contigLengths[,.(contig, length)], "contigLengths.txt")
+}
+
+contigLengths = fread("contigLengths.txt", header = T)
 
 # which we use to obtain the start position of each contig, in absolute genome coordinates
-contigStarts <- setNames(c(0L, cumsum(contigLengths$V2[-nrow(contigLengths)])),  contigLengths$V1)
+contigStarts <- setNames(c(0L, cumsum(contigLengths$length[-nrow(contigLengths)])),  contigLengths$contig)
 
 # we will split the snp file in chunks to work in parallel
 setorder(vcf, CHROM, POS)
@@ -72,7 +79,7 @@ baseNum[nums] <- 1:4
 
 
 
-# retreives bases and positions for a batch of SNP coordinates
+# retrieves bases and positions for a batch of SNP coordinates
 getBasesAtSNPs <- function(snps) {
 
   # this will be the name of the bed file used by samtools to retreive the data we want
@@ -81,11 +88,13 @@ getBasesAtSNPs <- function(snps) {
 
   # we ingest the relevant positions of the bam file below. This is
   # quite a bit faster than the equivalent command in Rsamtools. We cannot
-  # ingest with fread() as the number of columns is variable and fread doesn't
-  # like it. Note that the bam must be indexed.
-  # note also that we ignore PCR duplicate, secondary aligmnets, unmapped reads
+  # Note that the bam must be indexed.
+  # note also that we ignore PCR duplicate, secondary alignments, unmapped reads
   # (probably not necessary) and reads that failed QC
+  
   sam <- system(paste("samtools view -F 1024 -F 256 -F 512 -F 4 -ML", bed, bam), intern = T)
+  # we import as a vector instead of a table because the number fields varies, 
+  # which fread cannot manage. We will split field next.
   
   if (length(sam) == 0L) {
     return(NULL)
@@ -192,4 +201,4 @@ res = rbindlist(res)
 # we save an RDS to save space, as numbers can be quite long
 # they take 4 bytes in an RDS, but could take much more in a txt file
 # and the RDS is compressed
-saveRDS(res, file = stri_c(file_path_sans_ext(bam), ".basesAtSNPs.rds"))
+saveRDS(res, file = stri_c(bam, ".basesAtSNPs.rds"))

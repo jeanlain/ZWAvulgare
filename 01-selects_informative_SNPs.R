@@ -23,8 +23,8 @@ vcf <- fread(
     )
 
 # to facilitate the script, we will not show the 4 parents on the same row, but
-# only the two parents of the same famly (the two families will be at different
-# row) This functions extacts columns related to a given family (and "shared"
+# only the two parents of the same family (the two families will be at different
+# row) This functions extracts columns related to a given family (and "shared"
 # columns), removes family names from columns and adds a new columns to denote
 # the family
 oneFam <- function(fam) {
@@ -48,8 +48,8 @@ setnames(vcf, 6:13, c(
 
 baseTypes <- c("A", "C", "G", "T")
 
-# we convert bases to integers, which speeds things up, takes less memoery and
-# allows dicarding non-base variation (indels, missing value) at the same time
+# we convert bases to integers, which speeds things up, takes less memory and
+# allows discarding non-base variation (indels, missing value) at the same time
 # starting with the "left" base of the mother
 mother.L <- chmatch(stri_sub(vcf$mother.GT, 1, 1), baseTypes) 
 mother.R <- chmatch(stri_sub(vcf$mother.GT, 3, 3), baseTypes)
@@ -82,7 +82,7 @@ vcf[SNP, sum(!duplicated(data.table(CHROM, POS)))]
 # we count heterozygous SNPs -----------------------------
 # this is to estimate female heterozygous SNP density at stage 05)
 
-# For this, we recorde the 95% quantile of sequencing depth on SNPs (for each family.
+# For this, we record the 95% quantile of sequencing depth on SNPs (for each family.
 # we also do it for fathers even though we didn't use this information afterwards
 # (at some point, we recorded male heterozygous SNP density)
 depthQuantiles <- vcf[, .(
@@ -120,10 +120,10 @@ alleles <- matrix(NA, ncol = 2, nrow = length(mother.L))
 # logical that is TRUE if the left allele of the mother is in the father
 mother.L.in.father <- mother.L == father.L & informative
 
-# same, but this time we consier the "right" allele
+# same, but this time we consider the "right" allele
 mother.R.in.father <- mother.R == father.L & informative
 
-# we use these logical to retreive the maternal and paternal alleles
+# we use these logical to retrieve the maternal and paternal alleles
 # remember that the maternal allele is the one that is not in the father
 alleles[mother.L.in.father, ] <- cbind(mother.R[mother.L.in.father], mother.L[mother.L.in.father])
 alleles[mother.R.in.father, ] <- cbind(mother.L[mother.R.in.father], mother.R[mother.R.in.father])
