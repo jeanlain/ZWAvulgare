@@ -1,5 +1,5 @@
 # ZWAvulgare
-Scripts used in "Characterization of a sex-determining region and its genomic context via statistical estimates of haplotype frequencies in daughters and sons sequenced in pools" (submited)
+Scripts used in "Characterization of a sex-determining region and its genomic context via statistical estimates of haplotype frequencies in daughters and sons sequenced in pools" (https://doi.org/10.1093/gbe/evab121)
 
 Richard Cordaux, Mohamed Amine Chebbi, Isabelle Giraud, David Pleydell and Jean Peccoud
 
