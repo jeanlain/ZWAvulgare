@@ -1,7 +1,7 @@
-# ZWAvulgare
-Scripts used in "Characterization of a sex-determining region and its genomic context via statistical estimates of haplotype frequencies in daughters and sons sequenced in pools" (https://doi.org/10.1093/gbe/evab121)
+# M gene Avulgare
+Scripts used in "Identification of a sex-determining locus potentially involved in a conflict over sex-ratio" (submitted)
 
-Richard Cordaux, Mohamed Amine Chebbi, Isabelle Giraud, David Pleydell and Jean Peccoud
+Baptiste Lhéraud, Yann Dussert, Mohamed Amine Chebbi, Isabelle Giraud, Richard Cordaux, Jean Peccoud
 
 The scripts are not a ready-to-use piece of software to investigate sex chromosomes in other species.
 They are provided to document our method.
